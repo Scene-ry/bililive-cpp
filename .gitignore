@@ -1,0 +1,22 @@
+# Build output: build/BiliLiveCpp.exe (MinGW) and build/msvc/BiliLiveCpp.exe (MSVC)
+# bili_session.bin contains login cookies -- never commit it.
+build/
+
+# cl.exe drops .obj files into the repo root (build_msvc.bat sets no /Fo for sources)
+*.obj
+*.o
+*.res
+*.exe
+*.ilk
+*.pdb
+
+# Scratch workspace
+_temp/
+
+# Editors / OS junk
+.vs/
+.vscode/
+*.user
+Thumbs.db
+Desktop.ini
+.DS_Store
