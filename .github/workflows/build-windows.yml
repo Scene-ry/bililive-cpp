@@ -1,0 +1,68 @@
+name: build-windows
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.toolchain }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [mingw, msvc]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MSYS2 toolchain
+        if: matrix.toolchain == 'mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-toolchain
+
+      - name: Set up MSVC environment
+        if: matrix.toolchain == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Build
+        shell: cmd
+        run: call build_${{ matrix.toolchain }}.bat
+
+      - name: Self-test
+        shell: cmd
+        run: |
+          if "${{ matrix.toolchain }}"=="msvc" (set "EXE=build\msvc\BiliLiveCpp.exe") else (set "EXE=build\BiliLiveCpp.exe")
+          "%EXE%" --selftest build\selftest_result.txt
+          set "RC=%errorlevel%"
+          type build\selftest_result.txt
+          exit /b %RC%
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BiliLiveCpp-${{ matrix.toolchain }}
+          path: build/${{ matrix.toolchain == 'msvc' && 'msvc/' || '' }}BiliLiveCpp.exe
+          if-no-files-found: error
+
+      # Only the MinGW build is fully static (-static -static-libgcc -static-libstdc++);
+      # the MSVC exe links against vcruntime140.dll, which a clean Windows may lack.
+      - name: Publish GitHub Release
+        if: matrix.toolchain == 'mingw' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/BiliLiveCpp.exe --title "$GITHUB_REF_NAME" --generate-notes ||
+            gh release upload "$GITHUB_REF_NAME" build/BiliLiveCpp.exe --clobber
